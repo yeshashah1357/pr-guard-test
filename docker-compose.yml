@@ -1,0 +1,57 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: prguard
+      POSTGRES_PASSWORD: prguard
+      POSTGRES_DB: prguard
+    # Bound to localhost only, for running the API outside Docker during development.
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U prguard"]
+      interval: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "127.0.0.1:6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      retries: 10
+
+  api:
+    build: ./backend
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://prguard:prguard@db:5432/prguard
+      REDIS_URL: redis://redis:6379/0
+    ports:
+      - "8000:8000"
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    build: ./backend
+    command: rq worker reviews --url redis://redis:6379/0
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://prguard:prguard@db:5432/prguard
+      REDIS_URL: redis://redis:6379/0
+    depends_on:
+      api: { condition: service_started }
+
+  web:
+    build: ./frontend
+    ports:
+      - "8088:80"
+    depends_on:
+      - api
+
+volumes:
+  pgdata:
