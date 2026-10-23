@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, SEVERITIES, type FindingPage, type Repository, type Severity, type TrendPoint, type User } from "../api";
+import AddRepoModal from "./AddRepoModal";
 import FindingsTable from "./FindingsTable";
 import RunPanel from "./RunPanel";
 import TrendChart from "./TrendChart";
@@ -15,9 +16,10 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
   const [page, setPage] = useState<FindingPage>({ items: [], total: 0 });
   const [trend, setTrend] = useState<TrendPoint[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [newRepo, setNewRepo] = useState("");
+  const [addingRepo, setAddingRepo] = useState(false);
   const [openRun, setOpenRun] = useState<number | null>(null);
   const closeRun = useCallback(() => setOpenRun(null), []);
+  const closeAddRepo = useCallback(() => setAddingRepo(false), []);
 
   useEffect(() => {
     api.repos().then(setRepos).catch((e) => setError(e.message));
@@ -45,16 +47,9 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
     setSeverity((current) => (current.includes(s) ? current.filter((x) => x !== s) : [...current, s]));
   }
 
-  async function addRepo(event: FormEvent) {
-    event.preventDefault();
-    try {
-      const repo = await api.addRepo(newRepo.trim());
-      setRepos((r) => [...r, repo].sort((a, b) => a.full_name.localeCompare(b.full_name)));
-      setNewRepo("");
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Could not add repository");
-    }
-  }
+  const repoAdded = useCallback((repo: Repository) => {
+    setRepos((r) => [...r, repo].sort((a, b) => a.full_name.localeCompare(b.full_name)));
+  }, []);
 
   return (
     <div className="shell">
@@ -89,12 +84,7 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
             </option>
           ))}
         </select>
-        {user.role === "admin" && (
-          <form onSubmit={addRepo} className="inline">
-            <input placeholder="owner/repo" value={newRepo} onChange={(e) => setNewRepo(e.target.value)} required />
-            <button type="submit">Add repository</button>
-          </form>
-        )}
+        {user.role === "admin" && <button onClick={() => setAddingRepo(true)}>+ Add repository</button>}
       </section>
 
       <section className="stats">
@@ -150,6 +140,7 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
       </section>
 
       {openRun !== null && <RunPanel runId={openRun} onClose={closeRun} />}
+      {addingRepo && <AddRepoModal onClose={closeAddRepo} onAdded={repoAdded} />}
     </div>
   );
 }

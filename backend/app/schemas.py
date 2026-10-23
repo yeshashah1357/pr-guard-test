@@ -38,6 +38,23 @@ class RepositoryOut(ORM):
     id: int
     full_name: str
     is_active: bool
+    last_event_at: datetime | None
+
+
+class RepositoryCheck(BaseModel):
+    full_name: str
+    found: bool
+    private: bool | None
+    already_registered: bool
+    message: str
+
+
+class WebhookSetup(BaseModel):
+    webhook_url: str | None
+    content_type: str = "application/json"
+    events: list[str] = ["Pull requests"]
+    # The secret itself never leaves the server; this says where an admin finds it.
+    secret_location: str = "GITHUB_WEBHOOK_SECRET in the server's .env file"  # noqa: S105 (a hint, not a secret)
 
 
 class FindingOut(ORM):

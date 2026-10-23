@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     cors_origins: list[str] = ["http://localhost:5173"]
 
     github_api_url: str = "https://api.github.com"
+    # Where GitHub can reach this API (a domain, or a tunnel URL in local dev). Shown in
+    # the "Add repository" setup steps so the webhook URL can be copied as-is.
+    public_url: str | None = None
     # Off by default so the project runs at zero cost; Ruff and Bandit are free and always run.
     llm_review_enabled: bool = False
     anthropic_model: str = "claude-opus-5-5"

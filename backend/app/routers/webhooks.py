@@ -1,6 +1,7 @@
 import hashlib
 import hmac
 import json
+from datetime import UTC, datetime
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
@@ -28,6 +29,17 @@ def verify_signature(secret: str, body: bytes, signature: str | None) -> bool:
     return hmac.compare_digest(expected, signature.removeprefix("sha256="))
 
 
+def _record_delivery(db: Session, body: bytes) -> None:
+    try:
+        full_name = json.loads(body)["repository"]["full_name"]
+    except (json.JSONDecodeError, KeyError, TypeError):
+        return
+    repo = db.scalar(select(Repository).where(Repository.full_name == full_name))
+    if repo is not None:
+        repo.last_event_at = datetime.now(UTC)
+        db.commit()
+
+
 async def raw_body(request: Request) -> bytes:
     # The signature covers the exact bytes GitHub sent, so we verify before parsing.
     return await request.body()
@@ -44,6 +56,10 @@ def github_webhook(
     secret = get_settings().github_webhook_secret.get_secret_value()
     if not verify_signature(secret, body, x_hub_signature_256):
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid signature")
+
+    # Any verified delivery, including the ping GitHub sends when a webhook is created,
+    # proves the repository is connected; the setup screen waits for this.
+    _record_delivery(db, body)
 
     if x_github_event == "ping":
         return {"status": "pong"}

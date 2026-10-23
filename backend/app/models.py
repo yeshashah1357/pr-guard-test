@@ -62,6 +62,8 @@ class Repository(Base):
     full_name: Mapped[str] = mapped_column(String(200), unique=True)
     is_active: Mapped[bool] = mapped_column(default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    # Set on every verified webhook delivery; None means GitHub hasn't reached us yet.
+    last_event_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     pull_requests: Mapped[list["PullRequest"]] = relationship(back_populates="repository")
 

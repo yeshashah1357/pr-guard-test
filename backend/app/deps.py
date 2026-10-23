@@ -7,11 +7,20 @@ from redis import Redis
 from rq import Queue
 
 from app.config import get_settings
+from app.services.github import GitHubClient, GitHubError
 
 
 @lru_cache
 def get_redis() -> Redis:
     return Redis.from_url(get_settings().redis_url)
+
+
+def get_github() -> GitHubClient | None:
+    """None when no GITHUB_TOKEN is configured, so endpoints can say so instead of failing."""
+    try:
+        return GitHubClient()
+    except GitHubError:
+        return None
 
 
 def get_queue(redis: Annotated[Redis, Depends(get_redis)]) -> Queue:

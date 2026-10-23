@@ -11,6 +11,22 @@ export interface Repository {
   id: number;
   full_name: string;
   is_active: boolean;
+  last_event_at: string | null;
+}
+
+export interface RepositoryCheck {
+  full_name: string;
+  found: boolean;
+  private: boolean | null;
+  already_registered: boolean;
+  message: string;
+}
+
+export interface WebhookSetup {
+  webhook_url: string | null;
+  content_type: string;
+  events: string[];
+  secret_location: string;
 }
 
 export interface Finding {
@@ -124,6 +140,13 @@ export const api = {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ full_name }),
     }),
+  checkRepo: (full_name: string) =>
+    request<RepositoryCheck>("/repos/check", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ full_name }),
+    }),
+  webhookSetup: () => request<WebhookSetup>("/repos/setup"),
   findings(params: { repoId?: number; severity: Severity[]; tool?: string; limit: number; offset: number }) {
     const query = new URLSearchParams({ limit: String(params.limit), offset: String(params.offset) });
     if (params.repoId) query.set("repo_id", String(params.repoId));

@@ -39,6 +39,16 @@ class GitHubClient:
             raise GitHubError(f"GET {url} -> {response.status_code}: {response.text[:300]}")
         return response
 
+    def get_repo(self, repo: str) -> dict | None:
+        """The repository as the token sees it, or None if it doesn't exist or the token
+        can't see it (GitHub answers 404 for both, so a private repo isn't revealed)."""
+        response = self._http.get(f"/repos/{repo}")
+        if response.status_code == 404:
+            return None
+        if response.status_code >= 400:
+            raise GitHubError(f"GET /repos/{repo} -> {response.status_code}")
+        return response.json()
+
     def list_pr_files(self, repo: str, number: int) -> list[dict]:
         files: list[dict] = []
         page = 1

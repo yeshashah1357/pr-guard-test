@@ -6,11 +6,20 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload, selectinload
 
+from app.config import get_settings
 from app.db import get_db
-from app.deps import get_queue
+from app.deps import get_github, get_queue
 from app.models import PullRequest, Repository, ReviewRun, RunStatus
-from app.schemas import PullRequestOut, RepositoryCreate, RepositoryOut, RunDetail
+from app.schemas import (
+    PullRequestOut,
+    RepositoryCheck,
+    RepositoryCreate,
+    RepositoryOut,
+    RunDetail,
+    WebhookSetup,
+)
 from app.security import Admin, CurrentUser, Reviewer
+from app.services.github import GitHubClient, GitHubError
 from app.services.queueing import enqueue_review
 
 router = APIRouter(tags=["repositories"])
@@ -21,6 +30,46 @@ DB = Annotated[Session, Depends(get_db)]
 @router.get("/repos", response_model=list[RepositoryOut])
 def list_repos(_: CurrentUser, db: DB) -> list[Repository]:
     return list(db.scalars(select(Repository).order_by(Repository.full_name)))
+
+
+@router.get("/repos/setup", response_model=WebhookSetup)
+def webhook_setup(_: Admin) -> WebhookSetup:
+    """What an admin pastes into GitHub's webhook form for a new repository."""
+    base = get_settings().public_url
+    return WebhookSetup(webhook_url=f"{base.rstrip('/')}/api/webhooks/github" if base else None)
+
+
+@router.post("/repos/check", response_model=RepositoryCheck)
+def check_repo(
+    body: RepositoryCreate,
+    _: Admin,
+    db: DB,
+    github: Annotated[GitHubClient | None, Depends(get_github)],
+) -> RepositoryCheck:
+    """Look the repository up on GitHub before adding it, so typos and missing token
+    access show up now rather than as a failed review later."""
+    registered = db.scalar(select(Repository.id).where(Repository.full_name == body.full_name)) is not None
+    base = {"full_name": body.full_name, "already_registered": registered}
+    if github is None:
+        return RepositoryCheck(**base, found=False, private=None, message="GITHUB_TOKEN is not configured.")
+    try:
+        repo = github.get_repo(body.full_name)
+    except GitHubError as exc:
+        return RepositoryCheck(**base, found=False, private=None, message=f"GitHub error: {exc}")
+    if repo is None:
+        return RepositoryCheck(
+            **base,
+            found=False,
+            private=None,
+            message="Not found. Check the spelling, or give your GitHub token access to this repository.",
+        )
+    if repo["private"]:
+        message = "Found, and your token can read it."
+    else:
+        # Tokens can read every public repo, so a successful lookup doesn't prove the
+        # token may comment on this one; GitHub offers no way to check that without writing.
+        message = "Found. It's public, so make sure your token includes this repository to post comments."
+    return RepositoryCheck(**base, found=True, private=repo["private"], message=message)
 
 
 @router.post("/repos", response_model=RepositoryOut, status_code=status.HTTP_201_CREATED)
