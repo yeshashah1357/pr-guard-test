@@ -166,3 +166,27 @@ def test_failure_marks_run_failed_and_reraises(db, run):
 
 def test_missing_run_is_a_noop(db):
     run_review(db, 12345, FakeGitHub(), None)
+
+
+def test_secret_scanner_wins_over_bandit_and_covers_non_python_files(db, run):
+    source = 'import os\n\nPASSWORD = "Pr0d-Pa55w0rd!"\n'
+    patch = '@@ -0,0 +1,3 @@\n+import os\n+\n+PASSWORD = "Pr0d-Pa55w0rd!"'
+    github = FakeGitHub(
+        files=[
+            {"filename": "app/settings.py", "status": "added", "patch": patch},
+            {
+                "filename": "web/config.js",
+                "status": "added",
+                "patch": "@@ -0,0 +1 @@\n+const apiKey = 'Zq81Lm42Vx90';",
+            },
+        ],
+        contents={"app/settings.py": source},
+    )
+    run_review(db, run.id, github, None)
+    db.refresh(run)
+
+    # Bandit's B105 (LOW) and the scanner (HIGH) flag the same line; only the scanner's stays.
+    line3 = [(f.tool, f.severity) for f in run.findings if f.file_path == "app/settings.py" and f.line == 3]
+    assert line3 == [("secrets", Severity.high)]
+    js = [f for f in run.findings if f.file_path == "web/config.js"]
+    assert [(f.tool, f.rule_id) for f in js] == [("secrets", "SEC-GENERIC")]

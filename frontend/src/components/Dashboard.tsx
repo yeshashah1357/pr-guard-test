@@ -129,6 +129,7 @@ export default function Dashboard({ user, onLogout }: { user: User; onLogout: ()
             }}
           >
             <option value="">All tools</option>
+            <option value="secrets">Secrets</option>
             <option value="bandit">Bandit</option>
             <option value="ruff">Ruff</option>
             <option value="llm">LLM review</option>

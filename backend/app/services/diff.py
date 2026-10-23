@@ -41,6 +41,11 @@ def added_lines(patch: str) -> set[int]:
     return {n for n, marker, _ in _walk(patch) if marker == "+"}
 
 
+def added_line_texts(patch: str) -> list[tuple[int, str]]:
+    """(new-file line number, text) for each added line, for scanners that work on the diff."""
+    return [(n, text) for n, marker, text in _walk(patch) if marker == "+"]
+
+
 def annotate(patch: str) -> str:
     """Prefix each line with its new-file number so the LLM can cite exact lines."""
     out = []

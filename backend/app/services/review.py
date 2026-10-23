@@ -12,10 +12,12 @@ from app.services.analyzers import RawFinding, run_bandit, run_ruff
 from app.services.diff import ChangedFile, is_safe_path
 from app.services.github import GitHub, GitHubError
 from app.services.llm_review import LLMReviewer
+from app.services.secrets import scan_secrets
 
 log = logging.getLogger(__name__)
 
-TOOL_PRIORITY = {"bandit": 0, "ruff": 1, "llm": 2}
+# Lower wins when two tools report the same issue on the same line.
+TOOL_PRIORITY = {"secrets": 0, "bandit": 1, "ruff": 2, "llm": 3}
 
 
 def _keep(findings: list[RawFinding], changed: dict[str, ChangedFile]) -> list[RawFinding]:
@@ -84,7 +86,8 @@ def run_review(db: Session, run_id: int, github: GitHub, llm: LLMReviewer | None
                 continue
             changed[f["filename"]] = ChangedFile.from_patch(f["filename"], f["patch"])
 
-        found: list[RawFinding] = []
+        # The secret scan reads the diff itself, so it covers every changed file type.
+        found: list[RawFinding] = scan_secrets(changed.values())
         python_files = [p for p in changed if p.endswith(".py")]
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

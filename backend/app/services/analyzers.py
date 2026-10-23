@@ -13,6 +13,7 @@ from app.models import SEVERITY_RANK, Severity
 log = logging.getLogger(__name__)
 
 TIMEOUT_SECONDS = 120
+HARDCODED_SECRET_RULES = {"B105", "B106", "B107"}
 
 
 @dataclass
@@ -33,6 +34,9 @@ class RawFinding:
         rule = (
             "B" + self.rule_id[1:] if self.tool == "ruff" and self.rule_id.startswith("S") else self.rule_id
         )
+        # Bandit's hardcoded-password checks and the secret scanner describe the same problem.
+        if rule in HARDCODED_SECRET_RULES or self.tool == "secrets":
+            rule = "hardcoded-secret"
         return self.file_path, self.line, rule
 
 

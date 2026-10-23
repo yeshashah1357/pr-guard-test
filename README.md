@@ -43,6 +43,10 @@ flowchart LR
 - **LLM review with structured output:** responses are constrained to a JSON schema and validated
   with Pydantic. The model is told the diff is untrusted, so instructions planted in a PR are reviewed,
   not obeyed. Refusals, truncation and API errors produce a note on the run instead of failing it.
+- **Secret scanning on every file type:** a diff-based scanner flags provider keys (AWS, GitHub,
+  Stripe, Slack, Google, Anthropic, private keys) as critical and secret-looking assignments
+  (`API_KEY = "..."`, `DB_PASSWORD=...`) in Python, JS, YAML, JSON and `.env` files as high. It skips
+  placeholders and environment lookups, and masks the value in its comment.
 - **Safe handling of untrusted code:** analyzers only parse files, never import or execute them.
   File paths are checked for `..` and absolute paths. The container runs as a non-root user.
 - **Resilient posting:** findings are committed before the GitHub review is posted. If GitHub rejects
